@@ -1,6 +1,6 @@
 
 use core::fmt;
-
+use crate::serial::SERIAL1;
 
 #[macro_export]
 macro_rules! println {
@@ -10,6 +10,25 @@ macro_rules! println {
 #[macro_export]
 macro_rules! print{
     ($($arg:tt)*)=> ($crate::macros::print(format_args!($($arg)*)))
+}
+
+
+#[macro_export]
+macro_rules! serial_println {
+    () => ($crate::serial_print!("\n"));
+    ($fmt:expr) => ($crate::serial_print!(concat!($fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => ($crate::serial_print!(
+        concat!($fmt, "\n"), $($arg)*));
+}
+#[macro_export]
+macro_rules! serial_print {
+    ($($arg:tt)*) => {
+        $crate::macros::serprint(format_args!($($arg)*));
+    };
+}
+pub fn serprint(args: ::core::fmt::Arguments) {
+    use core::fmt::Write;
+    SERIAL1.lock().write_fmt(args).expect("printing to serial failed");
 }
 
 pub fn print(args: fmt::Arguments) {

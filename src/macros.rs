@@ -1,5 +1,6 @@
 
 use core::fmt;
+use crate::DEBUG;
 use crate::serial::SERIAL1;
 
 #[macro_export]
@@ -7,6 +8,12 @@ macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
+#[macro_export]
+macro_rules! dbg {
+    () => (if(DEBUG){$crate::print!("\n")});
+    ($($arg:tt)*) => (if(DEBUG){$crate::print!("{}\n", format_args!($($arg)*))});
+}
+
 #[macro_export]
 macro_rules! print{
     ($($arg:tt)*)=> ($crate::macros::print(format_args!($($arg)*)))

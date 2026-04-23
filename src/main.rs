@@ -9,6 +9,8 @@ mod serial;
 mod tests;
 use core::panic::PanicInfo;
 use x86_64::instructions::port::Port;
+
+const DEBUG:bool = true;
 #[unsafe(no_mangle)]
 pub extern "C" fn _start()->!{
     print_logo();

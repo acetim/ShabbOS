@@ -8,3 +8,7 @@ fn verryy_llonng_print(){
 fn basic_test_test(){
     assert_eq!(1,1);
 }
+#[test_case]
+fn breakpoint_test(){
+    x86_64::instructions::interrupts::int3();
+}

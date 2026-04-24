@@ -101,6 +101,17 @@ impl Writer{
             self.buffer.chars[row][col].write(blank);
         }
     }
+    pub fn clear_screen(&mut self){
+        let blank = ScreenChar{
+            ascii_character:b' ',
+            color_code:self.color_code
+        };
+        for row in 0..BUFFER_HEIGHT{
+            for col in 0..BUFFER_WIDTH{
+                self.buffer.chars[row][col].write(blank)
+            }
+        }
+    }
 }
 
 impl fmt::Write for Writer{

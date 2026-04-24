@@ -40,5 +40,5 @@ pub fn serprint(args: ::core::fmt::Arguments) {
 
 pub fn print(args: fmt::Arguments) {
     use core::fmt::Write;
-    crate::vga_buffer::WRITER.lock().write_fmt(args).unwrap();
+    crate::vga::vga_buffer::WRITER.lock().write_fmt(args).unwrap();
 }

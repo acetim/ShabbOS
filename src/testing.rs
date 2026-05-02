@@ -1,5 +1,6 @@
 use core::panic::PanicInfo;
 use crate::{serial_print, serial_println};
+use crate::panic::hlt_loop;
 
 #[cfg(test)]
 #[panic_handler]
@@ -7,7 +8,7 @@ fn panic(info:&PanicInfo)->!{
     serial_println!("\n[failed]");
     serial_println!("{}",info);
     exit_qemu(QemuExitCodes::Falied);
-    loop {}
+    hlt_loop()
 }
 #[cfg(test)]
 pub fn test_runner(tests: &[&dyn Testable]){

@@ -1,8 +1,7 @@
 
 use core::fmt;
-use crate::DEBUG;
 use crate::serial::SERIAL1;
-
+use x86_64::instructions::interrupts::without_interrupts;
 #[macro_export]
 macro_rules! println {
     () => ($crate::print!("\n"));
@@ -35,10 +34,15 @@ macro_rules! serial_print {
 }
 pub fn serprint(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
-    SERIAL1.lock().write_fmt(args).expect("printing to serial failed");
+    without_interrupts(||{
+        SERIAL1.lock().write_fmt(args).expect("printing to serial failed");
+    });
 }
 
 pub fn print(args: fmt::Arguments) {
     use core::fmt::Write;
-    crate::vga::vga_buffer::WRITER.lock().write_fmt(args).unwrap();
+    without_interrupts(|| {
+        crate::vga::vga_buffer::WRITER.lock().write_fmt(args).unwrap();
+    });
+
 }

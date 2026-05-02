@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::panic::PanicInfo;
 use crate::println;
 
@@ -15,7 +16,13 @@ fn panic(info:&PanicInfo)->!{
 
 
     println!("{}",info);
-    loop{}
+    hlt_loop()
+}
+
+pub fn hlt_loop() ->!{
+    loop{
+        unsafe{asm!("hlt")}
+    }
 }
 
 

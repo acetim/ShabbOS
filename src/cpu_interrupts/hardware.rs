@@ -30,11 +30,11 @@ impl InterruptIndex{
 }
 
 ///////////////////////////////handlers
-pub extern "x86-interrupt" fn handler_timer(interrupt_stack_frame: InterruptStackFrame){
+pub extern "x86-interrupt" fn handler_timer(_interrupt_stack_frame: InterruptStackFrame){
     //todo handle
     unsafe{PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.as_u8());}
 }
-pub extern "x86-interrupt" fn handler_keyboard(interrupt_stack_frame: InterruptStackFrame){
+pub extern "x86-interrupt" fn handler_keyboard(_interrupt_stack_frame: InterruptStackFrame){
 
     let mut port = Port::new(0x60);
     let scancode:u8 = unsafe{port.read()};
@@ -52,7 +52,6 @@ lazy_static! {
     }
 
 pub fn print_scancode(scancode:u8){
-
     let mut keyboard = KEYBOARD.lock();
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode){
         if let Some(key) = keyboard.process_keyevent(key_event){

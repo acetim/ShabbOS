@@ -14,7 +14,7 @@ use x86_64::structures::paging::page_table::FrameError;
 
 unsafe fn active_level_4_table(phys_mem_offset:VirtAddr) ->&'static mut PageTable{
     /*
-    when using this func make sure the offset given is suffiecnt to prevent "overflows" to virt addr space
+    returns the active page table stored in cr3
      */
     use x86_64::registers::control::Cr3;
     let (level_4_table_frame,_)=Cr3::read();

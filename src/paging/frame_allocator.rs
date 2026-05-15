@@ -14,7 +14,7 @@ static FRAME_ALLOC: Once<Mutex<BitmapFrameAllocator>> = Once::new();
 
 pub fn init(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr){
     FRAME_ALLOC.call_once(||{
-        Mutex::new(BitmapFrameAllocator::init(memory_map,phys_mem_offset))
+        Mutex::new(BitmapFrameAllocator::new(memory_map,phys_mem_offset))
     });
 }
 pub struct BitmapFrameAllocator{
@@ -22,7 +22,7 @@ pub struct BitmapFrameAllocator{
 }
 impl BitmapFrameAllocator{
 
-    pub fn init(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr)->Self{
+    pub fn new(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr)->Self{
         /*
         initializes the bitmap, sets each bit to 1 of page is used and 0 if free
          */
@@ -43,10 +43,10 @@ impl BitmapFrameAllocator{
         if bitmap_phys_addr == 0 {
             panic!("could not find a free memory region to hold the frame bitmap!");
         }
-        dbg!("found clear memory at {} ",bitmap_phys_addr);
+        dbg!("found clear memory at {:x} ",bitmap_phys_addr);
 
         let bitmap_virt_addr = phys_mem_offset + bitmap_phys_addr;
-        dbg!("translated {} to virtual memory at{:?} ",bitmap_phys_addr,bitmap_virt_addr);
+        dbg!("translated {:x} to virtual memory at{:?} ",bitmap_phys_addr,bitmap_virt_addr);
 
         let bitmap: &mut [u64] = unsafe {
             core::slice::from_raw_parts_mut(bitmap_virt_addr.as_mut_ptr(), bitmap_size_qwords)

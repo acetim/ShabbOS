@@ -43,11 +43,12 @@ fn kernel_main(boot_info: &'static BootInfo)->!{
 }
 
 fn init(boot_info: &'static BootInfo){
+    paging::frame_allocator::init(&boot_info.memory_map,VirtAddr::new(boot_info.physical_memory_offset));
     cpu_interrupts::idt::idt_init();
     cpu_interrupts::gdt::gdt_init();
     unsafe{cpu_interrupts::hardware::PICS.lock().initialize();}
     x86_64::instructions::interrupts::enable();//sti
-    paging::frame_allocator::init(&boot_info.memory_map,VirtAddr::new(boot_info.physical_memory_offset));
+
 }
 
 fn print_logo(){

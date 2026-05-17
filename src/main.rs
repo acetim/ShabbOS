@@ -4,7 +4,7 @@
 #![feature(abi_x86_interrupt)]
 #![test_runner(crate::testing::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
+extern crate alloc;
 use bootloader::{entry_point, BootInfo};
 use x86_64::structures::paging::Translate;
 use x86_64::VirtAddr;
@@ -18,6 +18,7 @@ mod vga;
 mod testing;
 mod panic;
 mod paging;
+mod dynamic_mem;
 
 pub const DEBUG:bool = true;
 

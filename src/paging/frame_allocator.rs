@@ -12,6 +12,9 @@ use x86_64::structures::paging::Size4KiB;
 //TODO REMOVE DBG!
 static FRAME_ALLOC: Once<Mutex<BitmapFrameAllocator>> = Once::new();
 
+pub fn get_frame_allocator()->&'static Mutex<BitmapFrameAllocator>{
+    FRAME_ALLOC.wait().expect("failed while trying to get frame allocator")
+}
 pub fn init(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr){
     FRAME_ALLOC.call_once(||{
         Mutex::new(BitmapFrameAllocator::new(memory_map,phys_mem_offset))

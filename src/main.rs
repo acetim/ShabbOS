@@ -5,6 +5,8 @@
 #![test_runner(crate::testing::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 extern crate alloc;
+
+use core::ops::DerefMut;
 use bootloader::{entry_point, BootInfo};
 use x86_64::structures::paging::Translate;
 use x86_64::VirtAddr;
@@ -30,15 +32,12 @@ fn kernel_main(boot_info: &'static BootInfo)->!{
 
     #[cfg(test)]
     test_main();
-
-    let addresses=[0xb8000,0x201008,0x0100_0020_1a10,boot_info.physical_memory_offset];
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mapper = unsafe{paging::setup::init(phys_mem_offset)};
-    for address in &addresses{
-        let virt = VirtAddr::new(*address);
-        let phys = mapper.translate_addr(virt);
-        println!("{:?} - > {:?}",virt,phys)
-    }
+    let mut kernel_mapper = unsafe{paging::setup::init(phys_mem_offset)};
+    dynamic_mem::allocator::kernel_heap_init(
+        &mut kernel_mapper,
+        paging::frame_allocator::get_frame_allocator().lock().deref_mut()).expect("failed initializing kernel heap");
+
     println!("no crash!");
     hlt_loop()
 }
@@ -49,6 +48,7 @@ fn init(boot_info: &'static BootInfo){
     cpu_interrupts::gdt::gdt_init();
     unsafe{cpu_interrupts::hardware::PICS.lock().initialize();}
     x86_64::instructions::interrupts::enable();//sti
+
 
 }
 

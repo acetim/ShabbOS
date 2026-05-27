@@ -13,7 +13,6 @@ use x86_64::VirtAddr;
 use crate::panic::hlt_loop;
 
 mod macros;
-mod serial;
 mod tests;
 mod cpu_interrupts;
 mod vga;
@@ -21,6 +20,7 @@ mod testing;
 mod panic;
 mod paging;
 mod dynamic_mem;
+mod utils;
 
 pub const DEBUG:bool = true;
 

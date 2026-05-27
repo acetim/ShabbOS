@@ -2,25 +2,21 @@ use alloc::alloc::{GlobalAlloc,Layout};
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::VirtAddr;
-
+use crate::utils::locker::Locker;
 #[global_allocator]
-static ALLOCATOR:Allocator = Allocator;
+static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
-pub struct Allocator;
-
-unsafe impl GlobalAlloc for Allocator{
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        todo!()
-    }
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        todo!()
-    }
+pub struct KHeapAllocator{
+    //todo
 }
+
 pub const HEAP_START:usize = 0x_aaaa_aaaa_0000;
 pub const HEAP_SIZE: usize = 100 * 1024;
+
+//run before KHeapAllocator::init()
 pub fn kernel_heap_init(
-    mapper:&mut impl Mapper<Size4KiB>
-    ,frame_allocator:&mut impl FrameAllocator<Size4KiB>
+    mapper:&mut impl Mapper<Size4KiB>,
+    frame_allocator:&mut impl FrameAllocator<Size4KiB>
 )->Result<(),MapToError<Size4KiB>>{
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
@@ -40,4 +36,17 @@ pub fn kernel_heap_init(
     }
     Ok(())
 
+}
+impl KHeapAllocator{
+    pub const fn new()->Self{
+        Self{}//todo
+    }
+}
+unsafe impl GlobalAlloc for Locker<KHeapAllocator>{
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        todo!()
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        todo!()
+    }
 }

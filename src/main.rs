@@ -22,7 +22,7 @@ mod paging;
 mod dynamic_mem;
 mod utils;
 
-pub const DEBUG:bool = true;
+
 
 entry_point!(kernel_main);
 

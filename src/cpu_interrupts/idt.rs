@@ -1,6 +1,5 @@
 use lazy_static::lazy_static;
 use x86_64::registers::control::Cr2;
-use crate::DEBUG;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use crate::cpu_interrupts::{gdt, hardware};
 use crate::dbg;

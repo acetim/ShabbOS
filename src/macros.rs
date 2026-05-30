@@ -10,8 +10,8 @@ macro_rules! println {
 #[macro_export]
 #[cfg(debug_assertions)]
 macro_rules! dbg {
-    () => (if(DEBUG){$crate::print!("\n")});
-    ($($arg:tt)*) => (if(DEBUG){$crate::print!("{}\n", format_args!($($arg)*))});
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
 #[macro_export]

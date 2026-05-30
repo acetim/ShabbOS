@@ -1,5 +1,5 @@
 use x86_64::structures::paging::{FrameAllocator, PhysFrame};
-use crate::DEBUG;
+
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 
 use x86_64::{PhysAddr, VirtAddr};
@@ -7,7 +7,7 @@ use crate::{dbg, println};
 use spin::{Mutex, Once};
 use x86_64::instructions::interrupts::without_interrupts;
 use x86_64::structures::paging::Size4KiB;
-
+//TODO add a separate optimized func for multiple frame requests at a time
 //TODO REVIEW INIT FOR BUGS
 //TODO REMOVE DBG!
 static FRAME_ALLOC: Once<Mutex<BitmapFrameAllocator>> = Once::new();

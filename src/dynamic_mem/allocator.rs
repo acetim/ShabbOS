@@ -1,10 +1,12 @@
 
 use alloc::alloc::{GlobalAlloc,Layout};
+use core::mem;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::VirtAddr;
 use crate::dbg;
 use crate::utils::locker::Locker;
+use core::ptr::write;
 #[global_allocator]
 static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
@@ -19,19 +21,21 @@ pub enum KHeapSize{
 }
 
 struct KHeapSlot{
-    next:Option<*mut KHeapSlot>, //8 bytes
+    next:Option<*mut KHeapSlot>,
 }
 
 
+#[derive(Debug)]
 enum KHeapErr{
     InvalidSize
 }
 pub struct KHeapAllocator{
-    cache:[Option<*mut KHeapSlot>;7]
+    cache:[Option<*mut KHeapSlot>;NUM_CACHES]
 }
 pub const HEAP_START:usize = 0x_aaaa_aaaa_0000;
-pub const HEAP_SIZE: usize = 100 * 1024;
-
+pub const NUM_CACHES:usize = 7;
+pub const HEAP_SIZE: usize = NUM_CACHES * 0x1000;
+pub const MIN_ALLOC_VAL:usize = 16;
 //runs before KHeapAllocator::init()
 pub fn kernel_heap_init(
     mapper:&mut impl Mapper<Size4KiB>,
@@ -53,6 +57,7 @@ pub fn kernel_heap_init(
             mapper.map_to(page,frame,flags,frame_allocator)?.flush();
         };
     }
+    ALLOCATOR.lock().init();
     Ok(())
 
 }
@@ -60,27 +65,44 @@ pub fn kernel_heap_init(
 
 
 impl KHeapAllocator{
-    //todo pentest ts shi
-    pub fn split_page_to_slots(size:usize,addr:usize)->Result<Option<*mut KHeapSlot>,KHeapErr>{
+    pub const fn new()->KHeapAllocator{
+        Self{
+            cache:[None;NUM_CACHES]
+        }
+    }
+    pub fn init(&mut self){
+        for slab_idx in 0..NUM_CACHES{
+            self.cache[slab_idx] = Self::split_page_to_slots(
+                MIN_ALLOC_VAL<<slab_idx,
+                HEAP_START+0x1000*slab_idx
+            )
+        }
+    }
+    //todo pentest ts shi vv
+    fn split_page_to_slots(size:usize,addr:usize)->Option<*mut KHeapSlot>{
         /*
         takes a slot size and addr and converts
         the next 4kb to slab slots at the size of arg size
         returns a KHeapSlot head to the cache
          */
-        if size < 16 {return Err(KHeapErr::InvalidSize);}
+        dbg!("size of heap slot {}",mem::size_of::<KHeapSlot>());
+        assert!(size>=mem::size_of::<KHeapSlot>());
         let head:*mut KHeapSlot = addr as *mut KHeapSlot;
         let num_slots = 0x1000/size;
+        let mut temp = head;
         unsafe {
-            let mut temp = head;
             for idx in 1..num_slots {
+                write(temp, KHeapSlot { next: None });
                 (*temp).next = Some((addr + size*idx) as *mut KHeapSlot);
                 dbg!("created new slot at {}",addr + size*idx);
-                temp = (*temp).next.expect("how did we get here?");//using unwrap because im sure theres an addr there
+                temp = (*temp).next.expect("how did we get here?");
             }
             (*temp).next =None;
         }
-        Ok(Some(head))
+        Some(head)
     }
+
+
 }
 
 
@@ -96,3 +118,4 @@ unsafe impl GlobalAlloc for Locker<KHeapAllocator>{
         todo!()
     }
 }
+unsafe impl Send for KHeapAllocator {}

@@ -4,9 +4,10 @@ use core::mem;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::VirtAddr;
-use crate::dbg;
+use crate::{dbg, paging};
 use crate::utils::locker::Locker;
 use core::ptr::write;
+use paging::frame_allocator::FRAME_ALLOC;
 #[global_allocator]
 static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
@@ -24,17 +25,17 @@ struct KHeapSlot{
     next:Option<*mut KHeapSlot>,
 }
 
-
 #[derive(Debug)]
 enum KHeapErr{
     InvalidSize
 }
 pub struct KHeapAllocator{
-    cache:[Option<*mut KHeapSlot>;NUM_CACHES]
+    cache:[Option<*mut KHeapSlot>;NUM_CACHES],
+    expanded_pages_count:usize
 }
 pub const HEAP_START:usize = 0x_aaaa_aaaa_0000;
 pub const NUM_CACHES:usize = 7;
-pub const HEAP_SIZE: usize = NUM_CACHES * 0x1000;
+pub const INIT_HEAP_SIZE: usize = NUM_CACHES * 0x1000;
 pub const MIN_ALLOC_VAL:usize = 16;
 //runs before KHeapAllocator::init()
 pub fn kernel_heap_init(
@@ -43,7 +44,7 @@ pub fn kernel_heap_init(
 )->Result<(),MapToError<Size4KiB>>{
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
-        let heap_end =  heap_start+HEAP_SIZE-1u64;
+        let heap_end =  heap_start+ INIT_HEAP_SIZE -1u64;
         let heap_start_page:Page<Size4KiB> = Page::containing_address(heap_start);
         let heap_end_page = Page::containing_address(heap_end);
         Page::range_inclusive(heap_start_page,heap_end_page)
@@ -67,7 +68,8 @@ pub fn kernel_heap_init(
 impl KHeapAllocator{
     pub const fn new()->KHeapAllocator{
         Self{
-            cache:[None;NUM_CACHES]
+            cache:[None;NUM_CACHES],
+            expanded_pages_count:0
         }
     }
     pub fn init(&mut self){
@@ -78,6 +80,7 @@ impl KHeapAllocator{
             )
         }
     }
+
     //todo pentest ts shi vv
     fn split_page_to_slots(size:usize,addr:usize)->Option<*mut KHeapSlot>{
         /*
@@ -85,6 +88,7 @@ impl KHeapAllocator{
         the next 4kb to slab slots at the size of arg size
         returns a KHeapSlot head to the cache
          */
+        dbg!("alignment of heap slot {}",mem::align_of::<KHeapSlot>());//todo check this
         dbg!("size of heap slot {}",mem::size_of::<KHeapSlot>());
         assert!(size>=mem::size_of::<KHeapSlot>());
         let head:*mut KHeapSlot = addr as *mut KHeapSlot;
@@ -101,8 +105,44 @@ impl KHeapAllocator{
         }
         Some(head)
     }
+    fn small_alloc(&mut self,layout: Layout)->*mut u8{
+        //TODO verify min size!!!!!
+        let size = layout.size();
+        let cache_idx = (64-(size>>4).leading_zeros()) as usize;//strictly 64 bit !
 
+        match self.cache[cache_idx]{
+            Some(chunk) => {
+                unsafe {
+                    self.cache[cache_idx] = (*chunk).next;
+                }
+                return chunk as *mut u8;
+            },
+            None=>{
+                //todo expand and try again
+            }
 
+        }
+        0 as *mut u8
+    }
+    fn expand_cache(&mut self,cache_idx:usize){
+        let heap_end_addr=HEAP_START+INIT_HEAP_SIZE+(self.expanded_pages_count)*0x1000;
+        let new_page:Page<Size4KiB> = Page::containing_address(VirtAddr::new(heap_end_addr as u64));
+        //todo maybe handle this better vv
+        let frame = FRAME_ALLOC.wait()
+            .expect("error while trying to acquire frame allocator")
+            .lock()
+            .allocate_frame()
+            .expect("physical frame allocation failed: no more memory available!!");
+        
+        let flags = PageTableFlags::WRITABLE | PageTableFlags::PRESENT;
+        unsafe{
+            (/*todo call active level 4 table and use as mapper*/).map_to(new_page,
+                          frame,
+                          flags,
+                          FRAME_ALLOC.wait().expect("error while trying to acquire frame allocator").lock()
+            )?.flush();
+        };
+    }
 }
 
 

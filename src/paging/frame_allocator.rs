@@ -10,7 +10,7 @@ use x86_64::structures::paging::Size4KiB;
 //TODO add a separate optimized func for multiple frame requests at a time
 //TODO REVIEW INIT FOR BUGS
 //TODO REMOVE DBG!
-static FRAME_ALLOC: Once<Mutex<BitmapFrameAllocator>> = Once::new();
+pub static FRAME_ALLOC: Once<Mutex<BitmapFrameAllocator>> = Once::new();
 
 pub fn get_frame_allocator()->&'static Mutex<BitmapFrameAllocator>{
     FRAME_ALLOC.wait().expect("failed while trying to get frame allocator")

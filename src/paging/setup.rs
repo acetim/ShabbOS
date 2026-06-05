@@ -1,11 +1,22 @@
+use bootloader::bootinfo::MemoryMap;
+use spin::{Mutex, Once};
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::{OffsetPageTable, PageTable};
 use x86_64::{PhysAddr, VirtAddr};
 use x86_64::structures::paging::page_table::FrameError;
+use crate::paging::frame_allocator::{BitmapFrameAllocator, FRAME_ALLOC};
 
+pub static KERNEL_PAGE_TABLE: Once<Mutex<OffsetPageTable<'static>>> = Once::new();
 
-
-
+pub unsafe fn init(phys_mem_offset:VirtAddr){
+    /*
+    caller must ensure valid phys mem offset
+     */
+    let level_4_table = active_level_4_table(phys_mem_offset);
+    KERNEL_PAGE_TABLE.call_once(||{
+        Mutex::new(OffsetPageTable::new(level_4_table,phys_mem_offset))
+    });
+}
 
 
 
@@ -25,8 +36,5 @@ unsafe fn active_level_4_table(phys_mem_offset:VirtAddr) ->&'static mut PageTabl
 
     unsafe {&mut *page_table_ptr}
 }
-pub unsafe fn init(phys_mem_offset:VirtAddr)-> OffsetPageTable<'static>{
-    let level_4_table = active_level_4_table(phys_mem_offset);
-    OffsetPageTable::new(level_4_table,phys_mem_offset)
-}
+
 

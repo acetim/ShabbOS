@@ -39,7 +39,7 @@ pub const INIT_HEAP_SIZE: usize = NUM_CACHES * 0x1000;
 pub const MIN_ALLOC_VAL:usize = 16;
 //runs before KHeapAllocator::init()
 pub fn kernel_heap_init(
-    mapper:&mut impl Mapper<Size4KiB>,
+    mapper_mutex:&mut impl Mapper<Size4KiB>,
     frame_allocator:&mut impl FrameAllocator<Size4KiB>
 )->Result<(),MapToError<Size4KiB>>{
     let page_range = {
@@ -82,7 +82,7 @@ impl KHeapAllocator{
     }
 
     //todo pentest ts shi vv
-    fn split_page_to_slots(size:usize,addr:usize)->Option<*mut KHeapSlot>{
+    fn split_page_to_slots(slot_size:usize, addr:usize) ->Option<*mut KHeapSlot>{
         /*
         takes a slot size and addr and converts
         the next 4kb to slab slots at the size of arg size
@@ -90,15 +90,15 @@ impl KHeapAllocator{
          */
         dbg!("alignment of heap slot {}",mem::align_of::<KHeapSlot>());//todo check this
         dbg!("size of heap slot {}",mem::size_of::<KHeapSlot>());
-        assert!(size>=mem::size_of::<KHeapSlot>());
+        assert!(slot_size >=mem::size_of::<KHeapSlot>());
         let head:*mut KHeapSlot = addr as *mut KHeapSlot;
-        let num_slots = 0x1000/size;
+        let num_slots = 0x1000/ slot_size;
         let mut temp = head;
         unsafe {
             for idx in 1..num_slots {
                 write(temp, KHeapSlot { next: None });
-                (*temp).next = Some((addr + size*idx) as *mut KHeapSlot);
-                dbg!("created new slot at {}",addr + size*idx);
+                (*temp).next = Some((addr + slot_size *idx) as *mut KHeapSlot);
+                dbg!("created new slot at {}",addr + slot_size*idx);
                 temp = (*temp).next.expect("how did we get here?");
             }
             (*temp).next =None;
@@ -133,8 +133,9 @@ impl KHeapAllocator{
             .lock()
             .allocate_frame()
             .expect("physical frame allocation failed: no more memory available!!");
-        
+
         let flags = PageTableFlags::WRITABLE | PageTableFlags::PRESENT;
+        let mapper =
         unsafe{
             (/*todo call active level 4 table and use as mapper*/).map_to(new_page,
                           frame,

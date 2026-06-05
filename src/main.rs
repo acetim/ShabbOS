@@ -32,11 +32,18 @@ fn kernel_main(boot_info: &'static BootInfo)->!{
 
     #[cfg(test)]
     test_main();
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut kernel_mapper = unsafe{paging::setup::init(phys_mem_offset)};
+
+    let mut kernel_mapper = paging::setup::KERNEL_PAGE_TABLE
+        .wait()
+        .expect("failed getting kernel page table")
+        .lock();
     dynamic_mem::allocator::kernel_heap_init(
-        &mut kernel_mapper,
-        paging::frame_allocator::get_frame_allocator().lock().deref_mut()).expect("failed initializing kernel heap");
+        &mut *kernel_mapper,
+        paging::frame_allocator::get_frame_allocator()
+            .lock()
+            .deref_mut()
+    ).expect("failed initializing kernel heap");
+
 
     println!("no crash!");
     hlt_loop()
@@ -48,7 +55,7 @@ fn init(boot_info: &'static BootInfo){
     cpu_interrupts::gdt::gdt_init();
     unsafe{cpu_interrupts::hardware::PICS.lock().initialize();}
     x86_64::instructions::interrupts::enable();//sti
-
+    unsafe{paging::setup::init(VirtAddr::new(boot_info.physical_memory_offset))};
 
 }
 

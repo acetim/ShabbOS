@@ -10,29 +10,15 @@ use crate::utils::locker::Locker;
 use core::ptr::write;
 use paging::frame_allocator::FRAME_ALLOC;
 use paging::setup::KERNEL_PAGE_TABLE;
-use crate::paging::frame_allocator::get_frame_allocator;
-
+use paging::frame_allocator::get_frame_allocator;
+use paging::mapping::pt_map_page;
 #[global_allocator]
 static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
-
-pub enum KHeapSize{
-    Size16bytes=16,
-    Size32bytes=32,
-    Size64bytes=64,
-    Size128bytes=128,
-    Size256bytes=256,
-    Size512bytes=512,
-    Size1024bytes=1024
-}
 
 struct KHeapSlot{
     next:Option<*mut KHeapSlot>,
 }
 
-#[derive(Debug)]
-enum KHeapErr{
-    InvalidSize
-}
 pub struct KHeapAllocator{
     cache:[Option<*mut KHeapSlot>;NUM_CACHES],
     expanded_pages_count:usize
@@ -53,21 +39,11 @@ pub fn kernel_heap_init(
         let heap_end_page = Page::containing_address(heap_end);
         Page::range_inclusive(heap_start_page,heap_end_page)
     };
-    for page in page_range{
-        let frame = frame_allocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-        let flags = PageTableFlags::WRITABLE | PageTableFlags::PRESENT;
-        unsafe{
-            mapper.map_to(page,frame,flags,frame_allocator)?.flush();
-        };
-    }
+    pt_map_page(mapper,frame_allocator,page_range)?;
     ALLOCATOR.lock().init();
     Ok(())
 
 }
-
-
 
 impl KHeapAllocator{
     pub const fn new()->KHeapAllocator{
@@ -84,7 +60,6 @@ impl KHeapAllocator{
             )
         }
     }
-
     //todo pentest ts shi vv
     fn split_page_to_slots(slot_size:usize, addr:usize) ->Option<*mut KHeapSlot>{
         /*
@@ -141,6 +116,7 @@ impl KHeapAllocator{
 
         }
     }
+    fn large_alloc(&mut self,layout: Layout)->*mut u8{todo!()}
     fn expand_cache(&mut self,cache_idx:usize)
     -> Result<(),MapToError<Size4KiB>>{
         /*
@@ -177,11 +153,6 @@ impl KHeapAllocator{
 
     }
 }
-
-
-
-
-
 
 unsafe impl GlobalAlloc for Locker<KHeapAllocator>{
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

@@ -13,7 +13,7 @@ use paging::setup::KERNEL_PAGE_TABLE;
 use paging::frame_allocator::get_frame_allocator;
 use paging::mapping::pt_map_page;
 #[global_allocator]
-static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
+pub static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
 struct KHeapSlot{
     next:Option<*mut KHeapSlot>,

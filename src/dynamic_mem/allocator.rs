@@ -116,6 +116,14 @@ impl KHeapAllocator{
 
         }
     }
+    unsafe fn small_free(&mut self, ptr: *mut u8, layout: Layout){
+        let size = layout.size();
+        let cache_idx = (64-(size>>4).leading_zeros()) as usize;
+        unsafe{
+            (*(ptr as *mut KHeapSlot)).next = self.cache[cache_idx]
+        }
+        self.cache[cache_idx]=Some(ptr as *mut KHeapSlot)
+    }
     fn large_alloc(&mut self,layout: Layout)->*mut u8{todo!()}
     fn expand_cache(&mut self,cache_idx:usize)
     -> Result<(),MapToError<Size4KiB>>{
@@ -123,7 +131,7 @@ impl KHeapAllocator{
         allocates a new 4kb phys frame for the kheap
         returns the start address of that new page
          */
-        let new_page_addr =HEAP_START+INIT_HEAP_SIZE+(self.expanded_pages_count)*0x1000;//addr of new page
+        let new_page_addr =HEAP_START+INIT_HEAP_SIZE+(self.expanded_pages_count)*0x1000;//todo, after bootstrap: use the vpa for page addr
         let new_page:Page<Size4KiB> = Page::containing_address(VirtAddr::new(new_page_addr as u64));
 
         //todo maybe handle this better vv

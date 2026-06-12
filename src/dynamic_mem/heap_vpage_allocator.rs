@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use core::alloc::{GlobalAlloc, Layout};
-use core::ptr::write;
+use core::ptr::{addr_of_mut, write};
 use crate::dynamic_mem::allocator;
 use crate::dynamic_mem::allocator::ALLOCATOR;
 
@@ -11,6 +11,11 @@ struct VpaNode {
     start: usize,
     pages: usize,
     next: Option<*mut VpaNode>,
+}
+impl VpaNode{
+    pub fn end(&self)->usize{
+        self.start+self.pages*0x1000
+    }
 }
 struct VirtualPageAllocator{
     freelist_head:Option<*mut VpaNode>
@@ -24,68 +29,74 @@ impl VirtualPageAllocator{
     }
     fn add_free_region(&mut self,start_new:usize,pages_new:usize) {
         /*
+        todo- long func, maybe make logic more compact later
         this function takes a new addr and a number of pages
         it expands/adds nodes to the freelist
+        ...<-current<-new<-prev<-...
          */
         let mut current_node = self.freelist_head;
         let mut prev_node = None;
+        let new_node_ref;
+        unsafe{
+            new_node_ref = &mut *Self::create_vpa_node(start_new, pages_new, None).expect("how did we get here")
+        }
         //go to new node position
-        while(current_node!=None){
+        while (current_node != None) {
             let current_ref;
-            unsafe{
-                current_ref=&*current_node
+            unsafe {
+                current_ref = &*current_node
                     .expect("how did we get here");
             }
-            if(current_ref.start<start_new){
+            if (current_ref.start < start_new) {
                 break;
             }
             prev_node = current_node;
-            current_node=current_ref.next;
+            current_node = current_ref.next;
         }
-        //no free nodes, set head as new node
-        if(prev_node==None&&current_node==None){
-            self.freelist_head = Self::create_vpa_node(
-                start_new,
-                pages_new,
-                None
-            );
-            return
-        }
-        //add/merge node to start
-        if(prev_node==None){
-            let current_ref = unsafe{
-                &mut (*current_node.unwrap())
-            };
-            if(start_new+(pages_new*0x1000)==current_ref.start){//merge
-                current_ref.start=current_ref.start-(pages_new*0x1000);
-                return;
+        //insert
+        if let Some(prev_ptr) = prev_node {
+            let prev_ref;
+            unsafe {
+                prev_ref = &mut *prev_ptr;
             }
-            self.freelist_head = Self::create_vpa_node(
-                start_new,
-                pages_new,
-                self.freelist_head
-            );
-            return
+            new_node_ref.next = prev_ref.next;
+            prev_ref.next = Some(new_node_ref as *mut VpaNode);
         }
-        //add/merge node to end
-        if(current_node==None){
-            let prev = unsafe{
-                &mut (*prev_node.unwrap())
-            };
-            if(prev.start+(prev.pages*0x1000)==start_new){//merge
-                prev.pages+=pages_new;
-                return
-            }
-            prev.next = Self::create_vpa_node(
-                start_new,
-                pages_new,
-                None
-            );
-            return
+        else{//insert as head
+            self.freelist_head=Some(new_node_ref as *mut VpaNode);
         }
-        //todo add to middle and check merge
+        new_node_ref.next = current_node;
+        //merge
+        Self::merge_three(prev_node,new_node_ref,current_node);
     }
-    fn create_vpa_node(start:usize,pages:usize,next:Option<*mut VpaNode>)->Option<*mut VpaNode>{
+    fn merge_three(prev:Option<*mut VpaNode>,mut mid:&mut VpaNode,next:Option<*mut VpaNode>){
+        let layout = Layout::new::<VpaNode>();
+        if let Some(prev_node)=prev{
+            unsafe{
+                if(*prev_node).end()==mid.start{
+                    //merge mid to prev and set prev as new mid
+                    (*prev_node).pages+=mid.pages;
+                    (*prev_node).next = next;
+                    ALLOCATOR.dealloc(mid as *mut VpaNode as *mut u8,layout);
+                    mid = &mut *prev_node;//not uaf lol
+                }
+            }
+        }
+        if let Some(next_node)=next{
+            unsafe{
+                if(*next_node).start==mid.end(){
+                    mid.pages+=(*next_node).pages;
+                    mid.next=(*next_node).next;
+                    ALLOCATOR.dealloc(next_node as *mut u8,layout);
+                }
+            }
+        }
+
+
+    }
+    fn create_vpa_node(start:usize,pages:usize,next:Option<*mut VpaNode>)
+        ->Option<*mut VpaNode>
+    {
         let layout = Layout::new::<VpaNode>();
         let vpa_node_ptr;
         unsafe{

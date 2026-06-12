@@ -29,7 +29,6 @@ impl VirtualPageAllocator{
     }
     fn add_free_region(&mut self,start_new:usize,pages_new:usize) {
         /*
-        todo- long func, maybe make logic more compact later
         this function takes a new addr and a number of pages
         it expands/adds nodes to the freelist
         ...<-current<-new<-prev<-...
@@ -41,26 +40,20 @@ impl VirtualPageAllocator{
             new_node_ref = &mut *Self::create_vpa_node(start_new, pages_new, None).expect("how did we get here")
         }
         //go to new node position
-        while (current_node != None) {
-            let current_ref;
-            unsafe {
-                current_ref = &*current_node
-                    .expect("how did we get here");
+        while let Some(current_ptr)=current_node {
+            unsafe{
+                if (*current_ptr).start > start_new {
+                    break;
+                }
+                prev_node = current_node;
+                current_node = (*current_ptr).next;
             }
-            if (current_ref.start < start_new) {
-                break;
-            }
-            prev_node = current_node;
-            current_node = current_ref.next;
         }
         //insert
         if let Some(prev_ptr) = prev_node {
-            let prev_ref;
             unsafe {
-                prev_ref = &mut *prev_ptr;
+                (*prev_ptr).next = Some(new_node_ref as *mut VpaNode);
             }
-            new_node_ref.next = prev_ref.next;
-            prev_ref.next = Some(new_node_ref as *mut VpaNode);
         }
         else{//insert as head
             self.freelist_head=Some(new_node_ref as *mut VpaNode);
@@ -70,6 +63,7 @@ impl VirtualPageAllocator{
         Self::merge_three(prev_node,new_node_ref,current_node);
     }
     fn merge_three(prev:Option<*mut VpaNode>,mut mid:&mut VpaNode,next:Option<*mut VpaNode>){
+        //todo vr ts
         let layout = Layout::new::<VpaNode>();
         if let Some(prev_node)=prev{
             unsafe{

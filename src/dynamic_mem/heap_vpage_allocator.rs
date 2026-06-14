@@ -1,7 +1,5 @@
-use alloc::boxed::Box;
 use core::alloc::{GlobalAlloc, Layout};
-use core::ptr::{addr_of_mut, write};
-use crate::dynamic_mem::allocator;
+use core::ptr::write;
 use crate::dynamic_mem::allocator::ALLOCATOR;
 
 struct VpaNode {
@@ -63,6 +61,10 @@ impl VirtualPageAllocator{
         Self::merge_three(prev_node,new_node_ref,current_node);
     }
     fn merge_three(prev:Option<*mut VpaNode>,mut mid:&mut VpaNode,next:Option<*mut VpaNode>){
+        /*
+        merges the nodes if next to each other
+        always merges nodes to the right
+         */
         //todo vr ts
         let layout = Layout::new::<VpaNode>();
         if let Some(prev_node)=prev{

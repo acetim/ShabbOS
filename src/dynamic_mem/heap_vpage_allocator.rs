@@ -28,7 +28,13 @@ impl VirtualPageAllocator{
     pub fn init(){
 
     }
-    fn alloc_vpage(&mut self,pages_to_allocate:usize)->Result<*mut u8,HeapErr>{
+    fn alloc_vpage(&mut self,pages_to_allocate:usize)->Result<*mut u8,HeapErr>{//todo check this
+        /*
+        takes an amount of pages to allocate
+        returns a pointer to an area of that size
+        MUST NOT USE alloc() inside this function and its callees
+        or infinite recursion will be possible
+         */
         let layout = Layout::new::<VpaNode>();
         let mut cur_node = self.freelist_head;
         let mut prev_node = None;
@@ -54,12 +60,10 @@ impl VirtualPageAllocator{
 
                     }
                     return Ok(allocated_addr);
-
                 }
                 prev_node = cur_node;
                 cur_node =(*cur_ptr).next;
             }
-
         }
         Err(OutOfSpace)
     }

@@ -48,16 +48,13 @@ impl VirtualPageAllocator{
                     (*cur_ptr).start +=pages_to_allocate*0x1000;
 
                     if((*cur_ptr).pages==0){
-                       if let Some(prev_node)= cur_node {
+                        if let Some(prev_node)= cur_node {
                            (*prev_node).next=(*cur_ptr).next;
-                           ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
-
-                       }
-                       else{
-                           self.freelist_head = (*cur_ptr).next;
-                           ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
-                       }
-
+                        }
+                        else{
+                            self.freelist_head = (*cur_ptr).next;
+                        }
+                        ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
                     }
                     return Ok(allocated_addr);
                 }

@@ -1,6 +1,9 @@
+use alloc::alloc::dealloc;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::write;
 use crate::dynamic_mem::allocator::ALLOCATOR;
+use crate::dynamic_mem::heap_errors::HeapErr;
+use crate::dynamic_mem::heap_errors::HeapErr::OutOfSpace;
 
 struct VpaNode {
     /*
@@ -24,6 +27,41 @@ impl VirtualPageAllocator{
     }
     pub fn init(){
 
+    }
+    fn alloc_vpage(&mut self,pages_to_allocate:usize)->Result<*mut u8,HeapErr>{
+        let layout = Layout::new::<VpaNode>();
+        let mut cur_node = self.freelist_head;
+        let mut prev_node = None;
+        let mut allocated_addr:*mut u8;
+        while let Some(cur_ptr)= cur_node {
+            unsafe {
+                if (*cur_ptr).pages >= pages_to_allocate {
+
+                    (*cur_ptr).pages -= pages_to_allocate;
+                    allocated_addr =(*cur_ptr).start as *mut u8;
+                    (*cur_ptr).start +=pages_to_allocate*0x1000;
+
+                    if((*cur_ptr).pages==0){
+                       if let Some(prev_node)= cur_node {
+                           (*prev_node).next=(*cur_ptr).next;
+                           ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
+
+                       }
+                       else{
+                           self.freelist_head = (*cur_ptr).next;
+                           ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
+                       }
+
+                    }
+                    return Ok(allocated_addr);
+
+                }
+                prev_node = cur_node;
+                cur_node =(*cur_ptr).next;
+            }
+
+        }
+        Err(OutOfSpace)
     }
     fn add_free_region(&mut self,start_new:usize,pages_new:usize) {
         /*

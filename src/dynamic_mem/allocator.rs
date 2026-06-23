@@ -12,6 +12,7 @@ use paging::frame_allocator::FRAME_ALLOC;
 use paging::setup::KERNEL_PAGE_TABLE;
 use paging::frame_allocator::get_frame_allocator;
 use paging::mapping::pt_map_page;
+use crate::dynamic_mem::heap_vpage_allocator::VirtualPageAllocator;
 #[global_allocator]
 pub static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
@@ -21,43 +22,17 @@ struct KHeapSlot{
 
 pub struct KHeapAllocator{
     cache:[Option<*mut KHeapSlot>;NUM_CACHES],
-    expanded_pages_count:usize
+    fallback_allocator: VirtualPageAllocator
 }
-pub const HEAP_START:usize = 0x_aaaa_aaaa_0000;
-pub const NUM_CACHES:usize = 7;
-pub const INIT_HEAP_SIZE: usize = NUM_CACHES * 0x1000;
-pub const MIN_ALLOC_VAL:usize = 16;
-//runs before KHeapAllocator::init()
-pub fn kernel_heap_init(
-    mapper:&mut impl Mapper<Size4KiB>,
-    frame_allocator:&mut impl FrameAllocator<Size4KiB>
-)->Result<(),MapToError<Size4KiB>>{
-    let page_range = {
-        let heap_start = VirtAddr::new(HEAP_START as u64);
-        let heap_end =  heap_start+ INIT_HEAP_SIZE -1u64;
-        let heap_start_page:Page<Size4KiB> = Page::containing_address(heap_start);
-        let heap_end_page = Page::containing_address(heap_end);
-        Page::range_inclusive(heap_start_page,heap_end_page)
-    };
-    pt_map_page(mapper,frame_allocator,page_range)?;
-    ALLOCATOR.lock().init();
-    Ok(())
 
-}
+pub const NUM_CACHES:usize = 7;
+pub const MIN_ALLOC_VAL:usize = 16;
 
 impl KHeapAllocator{
     pub const fn new()->KHeapAllocator{
         Self{
             cache:[None;NUM_CACHES],
-            expanded_pages_count:0
-        }
-    }
-    pub fn init(&mut self){
-        for slab_idx in 0..NUM_CACHES{
-            self.cache[slab_idx] = Self::split_page_to_slots(
-                MIN_ALLOC_VAL<<slab_idx,
-                HEAP_START+0x1000*slab_idx
-            )
+            fallback_allocator:VirtualPageAllocator::new()
         }
     }
     //todo pentest ts shi vv
@@ -84,7 +59,7 @@ impl KHeapAllocator{
         }
         Some(head)
     }
-    fn small_alloc(&mut self,layout: Layout)->*mut u8{
+    fn cache_alloc(&mut self, layout: Layout) ->*mut u8{
         /*
         responsible to allocate small sized chunks
         (up to 1kb)
@@ -116,7 +91,7 @@ impl KHeapAllocator{
 
         }
     }
-    unsafe fn small_free(&mut self, ptr: *mut u8, layout: Layout){
+    unsafe fn cache_free(&mut self, ptr: *mut u8, layout: Layout){
         let size = layout.size();
         let cache_idx = (64-(size>>4).leading_zeros()) as usize;
         unsafe{
@@ -124,14 +99,13 @@ impl KHeapAllocator{
         }
         self.cache[cache_idx]=Some(ptr as *mut KHeapSlot)
     }
-    fn large_alloc(&mut self,layout: Layout)->*mut u8{todo!()}
-    fn expand_cache(&mut self,cache_idx:usize)
+    fn expand_cache(&mut self,cache_idx:usize)//todo physical cache page management
     -> Result<(),MapToError<Size4KiB>>{
         /*
         allocates a new 4kb phys frame for the kheap
-        returns the start address of that new page
+        and breaks it down to caches
          */
-        let new_page_addr =HEAP_START+INIT_HEAP_SIZE+(self.expanded_pages_count)*0x1000;//todo, after bootstrap: use the vpa for page addr
+        let new_page_addr =self.fallback_allocator.alloc_vpage(1) as usize;
         let new_page:Page<Size4KiB> = Page::containing_address(VirtAddr::new(new_page_addr as u64));
 
         //todo maybe handle this better vv
@@ -154,11 +128,19 @@ impl KHeapAllocator{
                 get_frame_allocator().lock().deref_mut()
             )?.flush();
         };
-        self.expanded_pages_count+=1;
         let slot_size = 16<<cache_idx;
         self.cache[cache_idx]=Self::split_page_to_slots(slot_size,new_page_addr);
         Ok(())
 
+    }
+    pub fn alloc(&mut self,layout: Layout)->*mut u8{
+        let alloc_size = layout.size();
+        let max_slot_size= 16<<(NUM_CACHES-1);
+        if (alloc_size<=max_slot_size){
+            return self.cache_alloc(layout);
+        }
+        //todo get virt addr using fallback then allocate phys
+        todo!()
     }
 }
 

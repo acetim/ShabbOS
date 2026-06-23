@@ -1,10 +1,8 @@
-use alloc::alloc::dealloc;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::write;
-use crate::dynamic_mem::allocator::ALLOCATOR;
-use crate::dynamic_mem::heap_errors::HeapErr;
-use crate::dynamic_mem::heap_errors::HeapErr::OutOfSpace;
-
+use crate::dynamic_mem::allocator::{ALLOCATOR};
+pub const HEAP_SIZE: usize = 0x0000_aaaa_aaaa_0000;//implement heap expansion if getting out of mem errs
+pub const HEAP_START:usize = 0xaaaa_aaaa_aaaa_0000;
 struct VpaNode {
     /*
     MUST BE SLAB ALLOCATOR SIZED!!!
@@ -18,19 +16,19 @@ impl VpaNode{
         self.start+self.pages*0x1000
     }
 }
-struct VirtualPageAllocator{
+pub struct VirtualPageAllocator{
     freelist_head:Option<*mut VpaNode>
 }
 impl VirtualPageAllocator{
     pub const fn new()->Self{
         Self{ freelist_head:None}
     }
-    pub fn init(){
-
+    pub fn init(&mut self){
+        self.add_free_region(HEAP_START,HEAP_SIZE)
     }
-    fn alloc_vpage(&mut self,pages_to_allocate:usize)->Result<*mut u8,HeapErr>{//todo check this
+    pub fn alloc_vpage(&mut self,pages_to_allocate:usize)->*mut u8{//todo check this
         /*
-        takes an amount of pages to allocate
+        takes an amount of virtual pages to allocate
         returns a pointer to an area of that size
         MUST NOT USE alloc() inside this function and its callees
         or infinite recursion will be possible
@@ -56,13 +54,17 @@ impl VirtualPageAllocator{
                         }
                         ALLOCATOR.dealloc(cur_ptr as *mut u8, layout);
                     }
-                    return Ok(allocated_addr);
+                    return allocated_addr;
                 }
                 prev_node = cur_node;
                 cur_node =(*cur_ptr).next;
             }
         }
-        Err(OutOfSpace)
+        panic!("damn now i need to implement heap expansion");
+        
+    }
+    pub fn free_vpage(&mut self,start:usize,size:usize){
+        self.add_free_region(start,size);
     }
     fn add_free_region(&mut self,start_new:usize,pages_new:usize) {
         /*

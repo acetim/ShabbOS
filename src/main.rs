@@ -37,12 +37,7 @@ fn kernel_main(boot_info: &'static BootInfo)->!{
         .wait()
         .expect("failed getting kernel page table")
         .lock();
-    dynamic_mem::allocator::kernel_heap_init(
-        &mut *kernel_mapper,
-        paging::frame_allocator::get_frame_allocator()
-            .lock()
-            .deref_mut()
-    ).expect("failed initializing kernel heap");
+
 
 
     println!("no crash!");

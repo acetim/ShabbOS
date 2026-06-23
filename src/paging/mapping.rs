@@ -2,7 +2,7 @@ use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, S
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::page::PageRangeInclusive;
 use x86_64::VirtAddr;
-use crate::dynamic_mem::allocator::{HEAP_START, INIT_HEAP_SIZE};
+
 
 pub fn pt_map_page(
     mapper:&mut impl Mapper<Size4KiB>,

@@ -23,7 +23,7 @@ pub unsafe fn init(phys_mem_offset:VirtAddr){
 
 
 
-unsafe fn active_level_4_table(phys_mem_offset:VirtAddr) ->&'static mut PageTable{
+pub unsafe fn active_level_4_table(phys_mem_offset:VirtAddr) ->&'static mut PageTable{
     /*
     returns the active page table stored in cr3
      */

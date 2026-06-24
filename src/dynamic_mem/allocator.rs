@@ -59,6 +59,7 @@ impl KHeapAllocator{
         }
         Some(head)
     }
+
     fn cache_alloc(&mut self, layout: Layout) ->*mut u8{
         /*
         responsible to allocate small sized chunks
@@ -91,6 +92,7 @@ impl KHeapAllocator{
 
         }
     }
+
     unsafe fn cache_free(&mut self, ptr: *mut u8, layout: Layout){
         let size = layout.size();
         let cache_idx = (64-(size>>4).leading_zeros()) as usize;
@@ -99,6 +101,7 @@ impl KHeapAllocator{
         }
         self.cache[cache_idx]=Some(ptr as *mut KHeapSlot)
     }
+
     fn expand_cache(&mut self,cache_idx:usize)//todo physical cache page management
     -> Result<(),MapToError<Size4KiB>>{
         /*
@@ -133,15 +136,30 @@ impl KHeapAllocator{
         Ok(())
 
     }
-    pub fn alloc(&mut self,layout: Layout)->*mut u8{
+
+    pub fn kalloc(&mut self,layout: Layout)->*mut u8{
         let alloc_size = layout.size();
         let max_slot_size= 16<<(NUM_CACHES-1);
         if (alloc_size<=max_slot_size){
             return self.cache_alloc(layout);
         }
-        //todo get virt addr using fallback then allocate phys
-        todo!()
+        //fallback allocation
+        let start_addr = self.fallback_allocator.alloc_vpage(layout.size()+(0xfff)/0x1000) as u64;
+        //map phys pages
+        let page_range = {
+            let heap_start = VirtAddr::new(start_addr);
+            let heap_end =  VirtAddr::new((start_addr+layout.size() as u64)-1);
+            let heap_start_page:Page<Size4KiB> = Page::containing_address(heap_start);
+            let heap_end_page = Page::containing_address(heap_end);
+            Page::range_inclusive(heap_start_page,heap_end_page)
+        };
+        let frame_alloc = &mut *(FRAME_ALLOC.wait().expect("mapper is uninitialized").lock());
+        let mapper = &mut *KERNEL_PAGE_TABLE.wait().expect("kpt not initialized").lock();
+        pt_map_page(mapper,frame_alloc,page_range).unwrap();
+        start_addr as *mut u8
     }
+
+    pub fn kfree(&mut self,ptr: *mut u8,layout: Layout){}
 }
 
 unsafe impl GlobalAlloc for Locker<KHeapAllocator>{

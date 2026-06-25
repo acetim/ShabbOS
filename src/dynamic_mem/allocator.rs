@@ -2,7 +2,7 @@
 use alloc::alloc::{GlobalAlloc,Layout};
 use core::mem;
 use core::ops::DerefMut;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
+use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame, Size4KiB, Translate};
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::VirtAddr;
 use crate::{dbg, paging};
@@ -144,22 +144,46 @@ impl KHeapAllocator{
             return self.cache_alloc(layout);
         }
         //fallback allocation
-        let start_addr = self.fallback_allocator.alloc_vpage(layout.size()+(0xfff)/0x1000) as u64;
+        let pages_to_allocate = alloc_size+(0xfff)/0x1000;
+        let start_addr = self.fallback_allocator.alloc_vpage(pages_to_allocate) as u64;
         //map phys pages
         let page_range = {
             let heap_start = VirtAddr::new(start_addr);
-            let heap_end =  VirtAddr::new((start_addr+layout.size() as u64)-1);
+            let heap_end =  VirtAddr::new((start_addr+alloc_size as u64)-1);
             let heap_start_page:Page<Size4KiB> = Page::containing_address(heap_start);
             let heap_end_page = Page::containing_address(heap_end);
             Page::range_inclusive(heap_start_page,heap_end_page)
         };
-        let frame_alloc = &mut *(FRAME_ALLOC.wait().expect("mapper is uninitialized").lock());
-        let mapper = &mut *KERNEL_PAGE_TABLE.wait().expect("kpt not initialized").lock();
+        let frame_alloc = &mut *(FRAME_ALLOC.wait().expect("mapper is uninitialized").lock());//todo create methods for ts
+        let mapper = &mut *(KERNEL_PAGE_TABLE.wait().expect("kpt not initialized").lock());
         pt_map_page(mapper,frame_alloc,page_range).unwrap();
         start_addr as *mut u8
     }
 
-    pub fn kfree(&mut self,ptr: *mut u8,layout: Layout){}
+    pub unsafe fn kfree(&mut self,ptr: *mut u8,layout: Layout){//todo check off by 1 errs
+        //cache free
+        let alloc_size = layout.size();
+        let max_slot_size= 16<<(NUM_CACHES-1);
+        if (alloc_size<=max_slot_size){
+            self.cache_free(ptr,layout);
+            return
+        }
+        //fallback allocator free
+        let pages_to_free = (alloc_size+0xfff)/0x1000;
+        self.fallback_allocator.free_vpage(ptr as usize,pages_to_free);
+        //free phys frames
+        let start_page = ptr as usize/0x1000;
+        for page in start_page..start_page+pages_to_free{
+            let virt_addr = VirtAddr::new((page * 0x1000) as u64);
+            let phys_frame =KERNEL_PAGE_TABLE
+                .wait()
+                .unwrap()
+                .lock()
+                .translate_page(Page::<Size4KiB>::containing_address(virt_addr))
+                .expect("TRIED TO FREE UNALLOCATED MEMORY");
+            FRAME_ALLOC.wait().unwrap().lock().free_frame(phys_frame);
+        }
+    }
 }
 
 unsafe impl GlobalAlloc for Locker<KHeapAllocator>{

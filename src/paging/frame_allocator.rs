@@ -24,7 +24,12 @@ pub struct BitmapFrameAllocator{
     bitmap:&'static mut [u64]
 }
 impl BitmapFrameAllocator{
-
+    pub fn free_frame(&mut self,frame:PhysFrame){
+        let frame_index = (frame.start_address().as_u64()/0x1000) as usize;
+        without_interrupts(||{
+            self.bitmap[frame_index/64] ^=1u64<<(frame_index%64);
+        });
+    }
     pub fn new(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr)->Self{
         /*
         initializes the bitmap, sets each bit to 1 of page is used and 0 if free

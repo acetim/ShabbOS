@@ -2,7 +2,7 @@
 use alloc::alloc::{GlobalAlloc,Layout};
 use core::mem;
 use core::ops::DerefMut;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame, Size4KiB, Translate};
+use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags,Size4KiB};
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::VirtAddr;
 use crate::{dbg, paging};
@@ -17,6 +17,7 @@ use crate::dynamic_mem::heap_vpage_allocator::VirtualPageAllocator;
 pub static ALLOCATOR:Locker<KHeapAllocator> = Locker::new(KHeapAllocator::new());
 
 struct KHeapSlot{
+    //must be strictly under 16 bytes!
     next:Option<*mut KHeapSlot>,
 }
 
@@ -42,9 +43,9 @@ impl KHeapAllocator{
         the next 4kb to slab slots at the size of arg size
         returns a KHeapSlot head to the cache
          */
-        dbg!("alignment of heap slot {}",mem::align_of::<KHeapSlot>());//todo check this
+        dbg!("alignment of heap slot {}",mem::align_of::<KHeapSlot>());
         dbg!("size of heap slot {}",mem::size_of::<KHeapSlot>());
-        assert!(slot_size >=mem::size_of::<KHeapSlot>());
+        assert!(slot_size >=mem::size_of::<KHeapSlot>());//todo remove this after testing
         let head:*mut KHeapSlot = addr as *mut KHeapSlot;
         let num_slots = 0x1000/ slot_size;
         let mut temp = head;
@@ -67,7 +68,6 @@ impl KHeapAllocator{
         returns a raw pointer to that chunk
         expands the cache when freelist is full
          */
-        //TODO verify min size!!!!!
         let size = layout.size();
         let cache_idx = (64-(size>>4).leading_zeros()) as usize;//strictly 64 bit !
 
@@ -181,17 +181,21 @@ impl KHeapAllocator{
                 .lock()
                 .translate_page(Page::<Size4KiB>::containing_address(virt_addr))
                 .expect("TRIED TO FREE UNALLOCATED MEMORY");
-            FRAME_ALLOC.wait().unwrap().lock().free_frame(phys_frame);
+            FRAME_ALLOC
+                .wait()
+                .unwrap()
+                .lock()
+                .free_frame(phys_frame);
         }
     }
 }
 
 unsafe impl GlobalAlloc for Locker<KHeapAllocator>{
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        todo!()
+        self.lock().kalloc(layout)
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        todo!()
+        self.lock().kfree(ptr,layout)
     }
 }
 unsafe impl Send for KHeapAllocator {}

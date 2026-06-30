@@ -36,7 +36,7 @@ impl KHeapAllocator{
             fallback_allocator:VirtualPageAllocator::new()
         }
     }
-    //todo pentest ts shi vv
+    //todo tst
     fn split_page_to_slots(slot_size:usize, addr:usize) ->Option<*mut KHeapSlot>{
         /*
         takes a slot size and addr and converts
@@ -102,7 +102,7 @@ impl KHeapAllocator{
         self.cache[cache_idx]=Some(ptr as *mut KHeapSlot)
     }
 
-    fn expand_cache(&mut self,cache_idx:usize)//todo physical cache page management
+    fn expand_cache(&mut self,cache_idx:usize)//todo better physical cache page management
     -> Result<(),MapToError<Size4KiB>>{
         /*
         allocates a new 4kb phys frame for the kheap

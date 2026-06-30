@@ -180,7 +180,7 @@ impl KHeapAllocator{
                 .unwrap()
                 .lock()
                 .translate_page(Page::<Size4KiB>::containing_address(virt_addr))
-                .expect("TRIED TO FREE UNALLOCATED MEMORY");
+                .expect("TRIED TO TRANSLATE UNMAPPED MEMORY");
             FRAME_ALLOC
                 .wait()
                 .unwrap()

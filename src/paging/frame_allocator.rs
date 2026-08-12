@@ -1,4 +1,4 @@
-use x86_64::structures::paging::{FrameAllocator, PhysFrame};
+use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PhysFrame};
 
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 
@@ -7,6 +7,8 @@ use crate::{dbg, println};
 use spin::{Mutex, Once};
 use x86_64::instructions::interrupts::without_interrupts;
 use x86_64::structures::paging::Size4KiB;
+use crate::paging::setup::KERNEL_PAGE_TABLE;
+
 //TODO add a separate optimized func for multiple frame requests at a time
 //TODO REVIEW INIT FOR BUGS
 //TODO REMOVE DBG!
@@ -30,6 +32,7 @@ impl BitmapFrameAllocator{
             self.bitmap[frame_index/64] ^=1u64<<(frame_index%64);
         });
     }
+
     pub fn new(memory_map:&'static MemoryMap,phys_mem_offset:VirtAddr)->Self{
         /*
         initializes the bitmap, sets each bit to 1 of page is used and 0 if free
@@ -59,15 +62,15 @@ impl BitmapFrameAllocator{
         let bitmap: &mut [u64] = unsafe {
             core::slice::from_raw_parts_mut(bitmap_virt_addr.as_mut_ptr(), bitmap_size_qwords)
         };
-        bitmap.fill(0xff);
+        bitmap.fill(u64::MAX);
         for region in memory_map.iter().filter(|r| r.region_type == MemoryRegionType::Usable){
             let start_frame = region.range.start_frame_number;
             let end_frame = region.range.end_frame_number;//ths frame no longer belongs to the region
             dbg!("clearing frames {} -> {}",start_frame,end_frame);
-            for frame_index in start_frame..end_frame{
-                let index = frame_index as usize ;
-                bitmap[index/64]&=!(1u64<<index%64);
-            }
+                for frame_index in start_frame..end_frame {
+                    let index = frame_index as usize;
+                    bitmap[index / 64] &= !(1u64 << index % 64);
+                }
         }
 
         let bitmap_start_frame = bitmap_phys_addr / 4096;
@@ -86,15 +89,17 @@ unsafe impl FrameAllocator<Size4KiB> for BitmapFrameAllocator {
         "hardware accelerated" frame allocator with TZCNT!!!
         uses the bitmap to determine the first free page
          */
+
         without_interrupts(||{
             for (idx,qword_pages) in self.bitmap.iter_mut().enumerate(){
                 if(*qword_pages!=u64::MAX){
-
                     let page_inner=(*qword_pages).trailing_ones();
                     *qword_pages|=(1u64<<page_inner);
 
                     let page_index = ((idx*64)+(page_inner as usize)) as u64;
-                    return Some(PhysFrame::containing_address(PhysAddr::new(page_index*4096)))
+
+                    return Some(PhysFrame::containing_address(PhysAddr::new(page_index*0x1000)))
+
                 }
             }
             None

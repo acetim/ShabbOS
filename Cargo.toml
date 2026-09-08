@@ -27,6 +27,11 @@ name ="ShabbOS"
 test = true
 bench = false
 [package.metadata.bootimage]
+run-args = [
+    "-device","ich9-ahci,id=ahci_ctrl,addr=08.0",
+    "-drive","file=null-co://,file.size=1G,format=raw,if=none,id=satadisk",
+    "-device","ide-hd,bus=ahci_ctrl.0,drive=satadisk"
+]
 test-args = [
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
     "-display", "none"

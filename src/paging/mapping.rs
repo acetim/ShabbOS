@@ -42,7 +42,8 @@ pub fn pt_map_page_range(start_page:u64, pages_to_allocate:usize)
     for the specific pages included in the range
     !(inclusive)!
     &
-    frees the frames from the FRAME ALLOCATOR BITMAP
+    allocates the frames on the FRAME ALLOCATOR BITMAP
+    (maps the pages as writeable & present, refactor this func for more complex flags later)
      */
     let start_addr = start_page*0x1000;
     let size = pages_to_allocate *0x1000;
@@ -77,9 +78,9 @@ fn map_page_range_by_range(
 }
 
 fn _get_page_range(addr:u64, size:usize) ->PageRangeInclusive{
-    let heap_start = VirtAddr::new(addr);
-    let heap_end =  VirtAddr::new((addr+size as u64)-1);
-    let heap_start_page:Page<Size4KiB> = Page::containing_address(heap_start);
-    let heap_end_page = Page::containing_address(heap_end);
-    Page::range_inclusive(heap_start_page,heap_end_page)
+    let start_addr = VirtAddr::new(addr);
+    let end_addr =  VirtAddr::new((addr+size as u64)-1);
+    let start_page:Page<Size4KiB> = Page::containing_address(start_addr);
+    let end_page = Page::containing_address(end_addr);
+    Page::range_inclusive(start_page, end_page)
 }

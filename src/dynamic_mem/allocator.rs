@@ -88,12 +88,11 @@ impl KHeapAllocator{
         the next 4kb to slab slots at the size of arg size
         returns a KHeapSlot head to the cache
          */
-        assert!(slot_size >=size_of::<KHeapSlot>());//todo remove this after testing
         let head:*mut KHeapSlot = addr as *mut KHeapSlot;
         let num_slots = 0x1000/ slot_size;
         let mut temp = head;
         unsafe {
-            for idx in 1..num_slots {//todo check +1 bugs
+            for idx in 1..num_slots {
                 let new_node = KHeapSlot{next:None};
                 *temp = new_node;
                 (*temp).next = Some((addr + slot_size *idx) as *mut KHeapSlot);
@@ -145,34 +144,17 @@ impl KHeapAllocator{
         self.cache[cache_idx]=Some(ptr as *mut KHeapSlot)
     }
 
-    fn expand_cache(&mut self,cache_idx:usize)//todo better physical cache page management
+    fn expand_cache(&mut self,cache_idx:usize)
     -> Result<(),MapToError<Size4KiB>>{
         /*
         allocates a new 4kb phys frame for the kheap
         and breaks it down to caches
          */
         let new_page_addr =self._fallback_alloc_vpage(1) as usize;
-        let new_page:Page<Size4KiB> = Page::containing_address(VirtAddr::new(new_page_addr as u64));
-        //todo maybe handle this better vv
-        let new_frame = FRAME_ALLOC.wait()
-            .expect("error while trying to acquire frame allocator")
-            .lock()
-            .allocate_frame()
-            .expect("physical frame allocation failed: no more memory available!!");
-
-        let flags = PageTableFlags::WRITABLE | PageTableFlags::PRESENT;
-        let mut mapper =KERNEL_PAGE_TABLE
-            .wait()
-            .expect("kernel page table has not been initialized")
-            .lock();
-        unsafe{
-            (*mapper).map_to(
-                new_page,
-                new_frame,
-                flags,
-                get_frame_allocator().lock().deref_mut()
-            )?.flush();
-        };
+        pt_map_page_range(
+            (new_page_addr /0x1000) as u64,
+            1
+        )?;
         let slot_size = 16<<cache_idx;
 
         self.cache[cache_idx]=Self::split_page_to_slots(slot_size,new_page_addr);
@@ -184,7 +166,7 @@ impl KHeapAllocator{
         ((64-(size-1).leading_zeros()) as usize-4).min(NUM_CACHES-1)
     }
 
-    pub fn _fallback_alloc_vpage(&mut self, pages_to_allocate:usize) ->*mut u8{//todo check this
+    pub fn _fallback_alloc_vpage(&mut self, pages_to_allocate:usize) ->*mut u8{
         /*
         takes an amount of virtual pages to allocate
         returns a pointer to an area of that size
@@ -337,7 +319,7 @@ impl KHeapAllocator{
         start_addr as *mut u8
     }
 
-    pub unsafe fn kfree(&mut self,ptr: *mut u8,layout: Layout){//todo check off by 1 errs
+    pub unsafe fn kfree(&mut self,ptr: *mut u8,layout: Layout){
         //cache free
         let alloc_size = layout.size();
         let max_slot_size= 16<<(NUM_CACHES-1);
